@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋大师 - 从入门到高手</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+  overflow: hidden;
+}
+.header {
+  text-align: center;
+  padding: 8px 0 4px;
+  flex-shrink: 0;
+}
+.header h1 {
+  font-size: 24px;
+  color: #e8c170;
+  letter-spacing: 3px;
+}
+.header .subtitle {
+  font-size: 12px;
+  color: #888;
+}
+.container {
+  display: flex;
+  gap: 10px;
+  padding: 6px 20px 10px;
+  max-width: 1100px;
+  width: 100%;
+  justify-content: center;
+  align-items: flex-start;
+  flex: 1;
+  overflow: hidden;
+}
+.board-wrapper {
+  background: #2d2d3f;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  flex-shrink: 0;
+}
+canvas#board {
+  display: block;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 270px;
+  max-width: 320px;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: 100%;
+}
+.panel {
+  background: #2d2d3f;
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+.panel h3 {
+  font-size: 13px;
+  color: #e8c170;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 4px;
+}
+.mode-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+.btn {
+  padding: 6px 10px;
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #3a3a50;
+  color: #e0e0e0;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+  text-align: center;
+  white-space: nowrap;
+}
+.btn:hover { background: #4a4a65; border-color: #777; }
+.btn.active { background: #e8c170; color: #1a1a2e; border-color: #e8c170; font-weight: bold; }
+.btn.danger { background: #6b2a2a; border-color: #8b3a3a; }
+.btn.danger:hover { background: #8b3a3a; }
+.btn.primary { background: #2a5a3a; border-color: #3a6a4a; }
+.btn.primary:hover { background: #3a6a4a; }
+
+.difficulty-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.info-row .label { color: #999; }
+.info-row .value { color: #e8c170; font-weight: bold; }
+
+#statusText {
+  text-align: center;
+  font-size: 13px;
+  padding: 6px;
+  border-radius: 5px;
+  background: #222236;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.teach-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
+.teach-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  background: #333348;
+  transition: background 0.2s;
+}
+.teach-item:hover { background: #444468; }
+.teach-item.active { background: #e8c170; color: #1a1a2e; }
+.teach-item .tname { font-weight: bold; font-size: 12px; }
+.teach-item .tdesc { font-size: 11px; color: #aaa; margin-top: 1px; }
+.teach-item.active .tdesc { color: #333; }
+
+.move-history {
+  max-height: 80px;
+  overflow-y: auto;
+  font-size: 12px;
+  font-family: monospace;
+}
+.move-history .move {
+  display: inline-block;
+  padding: 1px 4px;
+  margin: 1px;
+  border-radius: 3px;
+  background: #333348;
+}
+.move-history .move.black { color: #fff; }
+.move-history .move.white { color: #e8c170; }
+
+.tip-box {
+  background: #222236;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #aaa;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #2d2d3f; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 2px; }
+
+/* Victory overlay */
+#victoryOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.75);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+#victoryOverlay.show { display: flex; }
+#particleCanvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+#victoryContent {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  animation: victoryZoom 0.6s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+}
+@keyframes victoryZoom {
+  0% { transform: scale(0.1); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+#victoryIcon {
+  font-size: 80px;
+  animation: iconBounce 0.8s ease-in-out infinite alternate;
+}
+@keyframes iconBounce {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-15px) scale(1.1); }
+}
+#victoryTitle {
+  font-size: 48px;
+  font-weight: bold;
+  margin: 12px 0 24px;
+  text-shadow: 0 0 30px currentColor, 0 0 60px currentColor, 0 0 90px currentColor;
+  animation: titleGlow 1s ease-in-out infinite alternate;
+}
+@keyframes titleGlow {
+  0% { text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
+  100% { text-shadow: 0 0 40px currentColor, 0 0 80px currentColor, 0 0 120px currentColor; }
+}
+#victoryBtn {
+  font-size: 18px;
+  padding: 12px 36px;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>五 子 棋 大 师</h1>
+  <div class="subtitle">从入门到高手 · 布阵教学 · AI对战 · 双人对弈</div>
+</div>
+
+<div class="container">
+  <div class="board-wrapper">
+    <canvas id="board"></canvas>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h3>游戏模式</h3>
+      <div class="mode-btns">
+        <button class="btn active" data-mode="pvp" id="btnPvP">双人对战</button>
+        <button class="btn" data-mode="pve" id="btnPvE">电脑挑战</button>
+        <button class="btn" data-mode="teach" id="btnTeach">布阵教学</button>
+      </div>
+      <div style="margin-top:6px;display:flex;gap:4px;">
+        <button class="btn primary" id="btnNewGame" style="flex:1">新游戏</button>
+        <button class="btn" id="btnUndo" style="flex:1">悔棋</button>
+      </div>
+    </div>
+
+    <div class="panel" id="difficultyPanel" style="display:none;">
+      <h3>电脑难度</h3>
+      <div class="difficulty-btns">
+        <button class="btn active" data-diff="easy">入门</button>
+        <button class="btn" data-diff="medium">进阶</button>
+        <button class="btn" data-diff="hard">大师</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div id="statusText">请选择模式开始游戏</div>
+    </div>
+
+    <div class="panel" id="infoPanel">
+      <h3>对局信息</h3>
+      <div class="info-row"><span class="label">当前回合</span><span class="value" id="infoTurn">-</span></div>
+      <div class="info-row"><span class="label">已落子数</span><span class="value" id="infoMoves">0</span></div>
+      <div class="info-row"><span class="label">黑棋(先手)</span><span class="value" id="infoBlack">⚫</span></div>
+      <div class="info-row"><span class="label">白棋(后手)</span><span class="value" id="infoWhite">⚪</span></div>
+    </div>
+
+    <div class="panel" id="teachPanel" style="display:none;">
+      <h3>经典棋型</h3>
+      <div class="teach-list" id="teachList"></div>
+    </div>
+
+    <div class="panel">
+      <h3>走棋记录</h3>
+      <div class="move-history" id="moveHistory"></div>
+    </div>
+
+    <div class="tip-box" id="tipBox"></div>
+  </div>
+</div>
+
+<div id="victoryOverlay">
+  <canvas id="particleCanvas"></canvas>
+  <div id="victoryContent">
+    <div id="victoryIcon"></div>
+    <div id="victoryTitle"></div>
+    <button class="btn primary" id="victoryBtn">再来一局</button>
+  </div>
+</div>
+
+<script>
+const BOARD_SIZE = 15;
+const CELL_SIZE = 36;
+const PADDING = 18;
+const LABEL_SIZE = 16;
+const RADIUS = 14;
+const GRID_OFFSET_X = PADDING + LABEL_SIZE;
+const GRID_OFFSET_Y = PADDING;
+
+let board = [];
+let currentPlayer = 1; // 1=black, 2=white
+let moveHistory = [];
+let gameOver = false;
+let mode = 'pvp'; // pvp, pve, teach
+let difficulty = 'easy';
+let lastMove = null;
+let aiThinking = false;
+let teachModeActive = false;
+let teachPresets = [];
+let selectedTeach = null;
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+canvas.width = GRID_OFFSET_X + PADDING + CELL_SIZE * (BOARD_SIZE - 1);
+canvas.height = GRID_OFFSET_Y + PADDING + LABEL_SIZE + CELL_SIZE * (BOARD_SIZE - 1);
+
+// ---- Teaching Presets ----
+const TEACH_PRESETS = [
+  {
+    name: '活三',
+    desc: '两端无阻挡的三连子，是进攻的基础棋型',
+    stones: [{r:7,c:7},{r:7,c:8},{r:7,c:9}],
+    highlight: [{r:7,c:6},{r:7,c:10}],
+    player: 1,
+    defStones: [{r:5,c:5},{r:5,c:8},{r:9,c:7}],
+    tips: '活三是五子棋中最基础的进攻手段。对手必须防守，否则下一着就能形成活四。掌握活三的各种形态（连活三、跳活三）是进阶的第一步。'
+  },
+  {
+    name: '冲四',
+    desc: '一端受阻的四连子，威胁力很高',
+    stones: [{r:7,c:0},{r:7,c:1},{r:7,c:2},{r:7,c:3}],
+    highlight: [{r:7,c:4}],
+    player: 1,
+    defStones: [{r:5,c:1},{r:5,c:4},{r:9,c:2},{r:9,c:5}],
+    tips: '冲四意味着再下一子就能连五。虽然只有一端可延伸，但对手必须立即阻挡。配合活三使用可形成"三三"杀着。'
+  },
+  {
+    name: '活四',
+    desc: '两端无阻挡的四连子，必胜',
+    stones: [{r:7,c:6},{r:7,c:7},{r:7,c:8},{r:7,c:9}],
+    highlight: [{r:7,c:5},{r:7,c:10}],
+    player: 1,
+    defStones: [{r:5,c:6},{r:5,c:9},{r:9,c:7},{r:9,c:10}],
+    tips: '活四是五子棋中仅次于五连的必胜棋型。一旦形成活四，无论对手如何阻挡都无法阻止下一着连成五。活四的优先级高于一切防守。'
+  },
+  {
+    name: '双活三',
+    desc: '同时形成两个活三，必胜杀着',
+    stones: [{r:7,c:4},{r:7,c:5},{r:6,c:5},{r:5,c:4}],
+    highlight: [{r:7,c:6}],
+    player: 1,
+    defStones: [{r:5,c:6},{r:5,c:8},{r:9,c:5},{r:9,c:7}],
+    tips: '双活三是五子棋中最经典的必胜杀着。落子G8后横向形成活三(E8-G8)，斜线也形成活三(G8→F7→E6)。对手只能挡一个方向，另一个方向下回合变活四取胜。学会制造双活三是成为高手的关键。'
+  },
+  {
+    name: '活三冲四',
+    desc: '同时形成活三和冲四，无法防御',
+    stones: [{r:7,c:0},{r:7,c:1},{r:7,c:2},{r:6,c:4},{r:5,c:5}],
+    highlight: [{r:7,c:3}],
+    player: 1,
+    defStones: [{r:5,c:1},{r:5,c:3},{r:9,c:2},{r:9,c:4},{r:8,c:6}],
+    tips: '活三加冲四的组合杀着比双活三更难被发现。落下一子后，一个方向形成活三，另一个方向形成冲四。对手挡冲四则活三变活四，挡活三则冲四变五连。'
+  },
+  {
+    name: '双冲四',
+    desc: '同时形成两个冲四，同样致命',
+    stones: [{r:7,c:0},{r:7,c:1},{r:7,c:2},{r:6,c:2},{r:5,c:1},{r:4,c:0}],
+    highlight: [{r:7,c:3}],
+    player: 1,
+    defStones: [{r:5,c:4},{r:5,c:6},{r:9,c:2},{r:9,c:4},{r:4,c:3},{r:4,c:5}],
+    tips: '双冲四比双活三少一个先决条件（只需要4颗子而非5颗），但判断更难。落子D8后横向形成冲四(A8-D8，左边缘阻端)，斜线也形成冲四(D8→C7→B6→A5)。对手挡横排则斜线变五连，挡斜线则横排变五连。在复杂局面中识别双冲四机会是高手与普通玩家的分水岭。'
+  },
+  {
+    name: '一子双杀',
+    desc: '一子落下同时形成两个活三，经典必杀',
+    stones: [{r:6,c:5},{r:6,c:6},{r:5,c:7},{r:7,c:7}],
+    highlight: [{r:6,c:7}],
+    player: 1,
+    defStones: [{r:4,c:5},{r:4,c:8},{r:8,c:5},{r:8,c:8}],
+    tips: '一子双杀是五子棋最优雅的杀着形态。落子H7后横向形成活三(F7-H7)，纵向也形成活三(H6-H8)。对手只能挡一个方向，另一个方向下回合变活四取胜。关键在于提前占据两线的交点位置。'
+  },
+  {
+    name: '连续冲四VCF',
+    desc: '连续制造冲四逼迫对手，最终取胜',
+    stones: [{r:5,c:0},{r:5,c:1},{r:5,c:2},{r:6,c:0},{r:7,c:0},{r:8,c:0},{r:3,c:4},{r:4,c:4},{r:5,c:5},{r:6,c:6},{r:7,c:7}],
+    highlight: [{r:5,c:3}],
+    player: 1,
+    defStones: [{r:3,c:5},{r:7,c:5},{r:9,c:6},{r:3,c:1},{r:4,c:1},{r:6,c:2},{r:7,c:2},{r:8,c:2},{r:8,c:4},{r:4,c:6},{r:6,c:8}],
+    tips: 'VCF(Victory by Continuous Four)核心思路：用一个冲四逼对手防守，同时在另一方向已布下杀着。黑棋在D6落子后，横向形成冲四(A6-D6，左边缘为阻端)，白棋被迫防守。但黑棋纵列(A)早已埋伏活四(A6-A9)——无论白棋如何应对，黑棋下一手即可五连取胜。VCF的精髓在于"声东击西"，让对手顾此失彼。'
+  },
+  {
+    name: '反守为攻',
+    desc: '防守对方冲四的同时为自己创造进攻机会',
+    stones: [{r:8,c:9},{r:9,c:9},{r:3,c:3},{r:3,c:5},{r:5,c:3},{r:10,c:3},{r:10,c:5},{r:4,c:6},{r:6,c:4},{r:2,c:7}],
+    highlight: [{r:7,c:9}],
+    player: 1,
+    defStones: [{r:7,c:10},{r:7,c:11},{r:7,c:12},{r:7,c:13},{r:3,c:4},{r:3,c:7},{r:5,c:5},{r:10,c:4},{r:10,c:7},{r:6,c:6}],
+    tips: '白棋在横排(K8-N8)构成冲四（右边缘为阻端，J8为唯一延伸口）。黑棋在高亮处J8落子后：既堵住了白棋的冲四（J8被占，白棋无法五连），又同时构成黑棋自身的纵向活三(J8→J9→J10)。一招同时完成防守和进攻布局，让对手从主动变被动。'
+  },
+  {
+    name: '抓禁手取胜',
+    desc: '利用禁手规则逼迫对手犯规，间接取胜',
+    stones: [{r:7,c:5},{r:7,c:7},{r:6,c:5},{r:5,c:4},{r:3,c:3},{r:3,c:8},{r:9,c:4},{r:9,c:7}],
+    highlight: [{r:7,c:6}],
+    player: 1,
+    defStones: [{r:5,c:6},{r:5,c:8},{r:8,c:5},{r:3,c:5},{r:3,c:7},{r:9,c:3},{r:9,c:8},{r:4,c:10}],
+    tips: '标准五子棋规则中黑棋有"三三禁手"——不能一子同时形成两个活三。黑棋已在横排(F8,H8)和斜线(E6→F7)各布两子，高亮位置G8恰好是两线的交点。若黑棋在此落子：横向(F8-H8)与斜向(G8→F7→E6)同时形成活三，构成三三禁手犯规。白棋可利用此规则，在实战中刻意制造这种交叉局面，迫使黑棋无法抢占关键位置。'
+  },
+  {
+    name: 'VCT威胁链',
+    desc: '通过连续的活三威胁逐步收紧，最终取胜',
+    stones: [{r:3,c:3},{r:4,c:3},{r:5,c:3},{r:4,c:4},{r:3,c:5},{r:4,c:6},{r:5,c:4}],
+    highlight: [{r:5,c:5}],
+    player: 1,
+    defStones: [{r:3,c:4},{r:5,c:2},{r:2,c:4},{r:6,c:3},{r:6,c:5},{r:7,c:2},{r:7,c:4}],
+    tips: 'VCT(Victory by Continuous Threat)不同于VCF的冲四链，它利用的是活三威胁链。黑棋在F6落子后：先形成斜线活三(F6→E5→D4)，白棋防守后，黑棋再有横向冲四(D6-F6)接纵向活三……每一步都是进攻，不给对手喘息机会。VCT要求提前规划至少3步的威胁序列。'
+  },
+  {
+    name: '八卦阵防守',
+    desc: '经典防御阵型，在棋盘上布下天罗地网',
+    stones: [{r:3,c:3},{r:3,c:5},{r:3,c:7},{r:4,c:4},{r:4,c:6},{r:5,c:3},{r:5,c:5},{r:5,c:7},{r:6,c:4},{r:6,c:6},{r:7,c:3},{r:7,c:5},{r:7,c:7}],
+    highlight: [],
+    player: 2,
+    defStones: [{r:4,c:3},{r:5,c:4},{r:6,c:5},{r:7,c:6},{r:6,c:3},{r:7,c:4},{r:2,c:4},{r:2,c:6},{r:5,c:2},{r:5,c:8},{r:8,c:2},{r:8,c:8},{r:3,c:1}],
+    tips: '八卦阵是五子棋最著名的防守体系。白棋每隔一格布置一子，形成棋盘上的网状布局，像八卦一样覆盖各方向。这种布局的特点是：无论对手从哪个方向进攻，都有己方棋子可以进行拦截。八卦阵的核心思想是"以守为攻"，在稳固防守中等待对手犯错后反击。'
+  }
+];
+
+function initBoard() {
+  board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(0));
+  currentPlayer = 1;
+  moveHistory = [];
+  gameOver = false;
+  lastMove = null;
+  aiThinking = false;
+  updateUI();
+  drawBoard();
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  ctx.fillStyle = '#d4a855';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  ctx.strokeStyle = '#8b6914';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    const x = GRID_OFFSET_X + i * CELL_SIZE;
+    const y = GRID_OFFSET_Y + i * CELL_SIZE;
+    ctx.beginPath();
+    ctx.moveTo(GRID_OFFSET_X, y);
+    ctx.lineTo(GRID_OFFSET_X + CELL_SIZE * (BOARD_SIZE - 1), y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, GRID_OFFSET_Y);
+    ctx.lineTo(x, GRID_OFFSET_Y + CELL_SIZE * (BOARD_SIZE - 1));
+    ctx.stroke();
+  }
+
+  // Coordinate labels
+  ctx.fillStyle = '#6b5010';
+  ctx.font = '11px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const labelY = GRID_OFFSET_Y + CELL_SIZE * (BOARD_SIZE - 1) + LABEL_SIZE;
+  for (let c = 0; c < BOARD_SIZE; c++) {
+    const x = GRID_OFFSET_X + c * CELL_SIZE;
+    ctx.fillText(String.fromCharCode(65 + c), x, labelY);
+  }
+  ctx.textAlign = 'right';
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    const y = GRID_OFFSET_Y + r * CELL_SIZE;
+    ctx.fillText(String(r + 1), GRID_OFFSET_X - 4, y);
+  }
+
+  // Star points
+  const stars = [[3,3],[3,7],[3,11],[7,3],[7,7],[7,11],[11,3],[11,7],[11,11]];
+  ctx.fillStyle = '#8b6914';
+  stars.forEach(([r,c]) => {
+    ctx.beginPath();
+    ctx.arc(GRID_OFFSET_X + c * CELL_SIZE, GRID_OFFSET_Y + r * CELL_SIZE, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Highlight teaching positions
+  if (teachModeActive && selectedTeach !== null) {
+    const t = TEACH_PRESETS[selectedTeach];
+    ctx.fillStyle = 'rgba(0,255,100,0.35)';
+    t.highlight.forEach(({r,c}) => {
+      ctx.beginPath();
+      ctx.arc(GRID_OFFSET_X + c * CELL_SIZE, GRID_OFFSET_Y + r * CELL_SIZE, RADIUS + 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // Stones
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === 0) continue;
+      const x = GRID_OFFSET_X + c * CELL_SIZE;
+      const y = GRID_OFFSET_Y + r * CELL_SIZE;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.beginPath();
+      ctx.arc(x + 1, y + 1, RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+
+      const grad = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, RADIUS);
+      if (board[r][c] === 1) {
+        grad.addColorStop(0, '#555');
+        grad.addColorStop(1, '#111');
+      } else {
+        grad.addColorStop(0, '#fff');
+        grad.addColorStop(1, '#bbb');
+      }
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Last move indicator
+  if (lastMove) {
+    const x = GRID_OFFSET_X + lastMove.c * CELL_SIZE;
+    const y = GRID_OFFSET_Y + lastMove.r * CELL_SIZE;
+    ctx.strokeStyle = '#ff3333';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, RADIUS - 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function getCellFromEvent(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const c = Math.round((mx - GRID_OFFSET_X) / CELL_SIZE);
+  const r = Math.round((my - GRID_OFFSET_Y) / CELL_SIZE);
+  if (c < 0 || c >= BOARD_SIZE || r < 0 || r >= BOARD_SIZE) return null;
+  const dx = Math.abs(mx - (GRID_OFFSET_X + c * CELL_SIZE));
+  const dy = Math.abs(my - (GRID_OFFSET_Y + r * CELL_SIZE));
+  if (dx > RADIUS || dy > RADIUS) return null;
+  return {r, c};
+}
+
+// ---- Victory Effect ----
+let particles = [];
+let particleAnimationId = null;
+
+function showVictory(winnerName, player) {
+  const overlay = document.getElementById('victoryOverlay');
+  const icon = document.getElementById('victoryIcon');
+  const title = document.getElementById('victoryTitle');
+  const particleCanvas = document.getElementById('particleCanvas');
+  const pctx = particleCanvas.getContext('2d');
+
+  particleCanvas.width = window.innerWidth;
+  particleCanvas.height = window.innerHeight;
+
+  icon.textContent = player === 1 ? '⚫' : '⚪';
+  title.textContent = `${winnerName} 获胜!`;
+  title.style.color = player === 1 ? '#fff' : '#e8c170';
+  icon.style.color = player === 1 ? '#fff' : '#e8c170';
+
+  overlay.classList.add('show');
+
+  // Create particles
+  particles = [];
+  const colors = player === 1 ? ['#333','#555','#888','#fff','#ff6b6b','#ffd700']
+    : ['#eee','#fff','#ffd700','#ff6b6b','#ffeaa7','#dfe6e9'];
+  for (let i = 0; i < 200; i++) {
+    particles.push({
+      x: Math.random() * particleCanvas.width,
+      y: Math.random() * particleCanvas.height - particleCanvas.height,
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 1,
+      size: Math.random() * 6 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.2,
+      opacity: 1,
+      life: Math.random() * 200 + 100
+    });
+  }
+
+  function animate() {
+    pctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+    let alive = false;
+    for (const p of particles) {
+      p.x += p.vx;
+      p.vy += 0.03;
+      p.y += p.vy;
+      p.rotation += p.rotSpeed;
+      p.life--;
+      if (p.life <= 0) continue;
+      alive = true;
+      p.opacity = Math.min(1, p.life / 60);
+      pctx.save();
+      pctx.translate(p.x, p.y);
+      pctx.rotate(p.rotation);
+      pctx.globalAlpha = p.opacity;
+      pctx.fillStyle = p.color;
+      pctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+      pctx.restore();
+    }
+    if (alive && overlay.classList.contains('show')) {
+      particleAnimationId = requestAnimationFrame(animate);
+    } else {
+      pctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+    }
+  }
+  animate();
+}
+
+function hideVictory() {
+  const overlay = document.getElementById('victoryOverlay');
+  overlay.classList.remove('show');
+  if (particleAnimationId) {
+    cancelAnimationFrame(particleAnimationId);
+    particleAnimationId = null;
+  }
+  particles = [];
+}
+
+document.getElementById('victoryBtn').addEventListener('click', () => {
+  hideVictory();
+  initBoard();
+  if (teachModeActive && selectedTeach !== null) {
+    applyTeachPreset(selectedTeach);
+  }
+  updateUI();
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  const cell = getCellFromEvent(e);
+  if (cell && board[cell.r][cell.c] === 0 && !gameOver && !aiThinking) {
+    canvas.style.cursor = 'pointer';
+  } else {
+    canvas.style.cursor = gameOver || aiThinking ? 'default' : 'pointer';
+  }
+});
+
+canvas.addEventListener('click', (e) => {
+  if (gameOver || aiThinking) return;
+  const cell = getCellFromEvent(e);
+  if (!cell) return;
+  if (board[cell.r][cell.c] !== 0) return;
+
+  if (teachModeActive) {
+    placeTeachStone(cell.r, cell.c);
+    return;
+  }
+
+  placeStone(cell.r, cell.c);
+});
+
+function placeStone(r, c) {
+  board[r][c] = currentPlayer;
+  moveHistory.push({r, c, player: currentPlayer});
+  lastMove = {r, c};
+
+  const win = checkWin(r, c, currentPlayer);
+
+  if (win) {
+    gameOver = true;
+    const name = currentPlayer === 1 ? '黑棋' : '白棋';
+    document.getElementById('statusText').innerHTML = `<span style="color:#ff6b6b;font-size:18px;">${name}获胜!</span>`;
+    showVictory(name, currentPlayer);
+  } else if (moveHistory.length === BOARD_SIZE * BOARD_SIZE) {
+    gameOver = true;
+    document.getElementById('statusText').innerHTML = '<span style="color:#e8c170;">平局!</span>';
+  } else {
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+  }
+
+  drawBoard();
+  updateUI();
+
+  if (!gameOver && mode === 'pve' && currentPlayer === 2) {
+    aiThinking = true;
+    updateUI();
+    setTimeout(() => aiMove(), 100);
+  }
+
+  if (gameOver && mode === 'pve' && currentPlayer === 2) {
+    updateUI();
+  }
+}
+
+function placeTeachStone(r, c) {
+  board[r][c] = board[r][c] === 0 ? 1 : (board[r][c] === 1 ? 2 : 0);
+  drawBoard();
+  updateUI();
+}
+
+// ---- Win Detection ----
+const DIRECTIONS = [[0,1],[1,0],[1,1],[1,-1]];
+
+function countDirection(r, c, dr, dc, player) {
+  let count = 0;
+  for (let i = 1; i < 5; i++) {
+    const nr = r + dr * i;
+    const nc = c + dc * i;
+    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+    if (board[nr][nc] !== player) break;
+    count++;
+  }
+  return count;
+}
+
+function checkWin(r, c, player) {
+  for (const [dr, dc] of DIRECTIONS) {
+    const total = 1 + countDirection(r, c, dr, dc, player) + countDirection(r, c, -dr, -dc, player);
+    if (total >= 5) return true;
+  }
+  return false;
+}
+
+// ---- AI Engine ----
+function getEmptyCells() {
+  const cells = [];
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === 0) cells.push({r, c});
+    }
+  }
+  return cells;
+}
+
+// Get nearby empty cells around existing stones
+function getCandidateMoves(radius) {
+  const candidateSet = new Set();
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] !== 0) {
+        for (let dr = -radius; dr <= radius; dr++) {
+          for (let dc = -radius; dc <= radius; dc++) {
+            const nr = r + dr;
+            const nc = c + dc;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === 0) {
+              candidateSet.add(nr * BOARD_SIZE + nc);
+            }
+          }
+        }
+      }
+    }
+  }
+  if (candidateSet.size === 0) {
+    const center = Math.floor(BOARD_SIZE / 2);
+    return [{r: center, c: center}];
+  }
+  return Array.from(candidateSet).map(v => ({r: Math.floor(v / BOARD_SIZE), c: v % BOARD_SIZE}));
+}
+
+// Pattern scoring
+function evaluatePattern(count, openEnds, isMyTurn) {
+  if (count >= 5) return 1000000;
+  if (count === 4) {
+    if (openEnds === 2) return 100000; // Live four
+    if (openEnds === 1) return 10000;  // Rush four
+  }
+  if (count === 3) {
+    if (openEnds === 2) return isMyTurn ? 5000 : 1000; // Live three
+    if (openEnds === 1) return 500;  // Sleep three
+  }
+  if (count === 2) {
+    if (openEnds === 2) return 200;
+    if (openEnds === 1) return 50;
+  }
+  if (count === 1) {
+    if (openEnds === 2) return 20;
+    if (openEnds === 1) return 5;
+  }
+  return 0;
+}
+
+function evaluateLine(r, c, dr, dc, player) {
+  let count = 0;
+  let openEnds = 0;
+
+  // Forward
+  let fr = r + dr, fc = c + dc;
+  while (fr >= 0 && fr < BOARD_SIZE && fc >= 0 && fc < BOARD_SIZE && board[fr][fc] === player) {
+    count++;
+    fr += dr;
+    fc += dc;
+  }
+  if (fr >= 0 && fr < BOARD_SIZE && fc >= 0 && fc < BOARD_SIZE && board[fr][fc] === 0) {
+    openEnds++;
+  }
+
+  // Backward
+  let br = r - dr, bc = c - dc;
+  while (br >= 0 && br < BOARD_SIZE && bc >= 0 && bc < BOARD_SIZE && board[br][bc] === player) {
+    count++;
+    br -= dr;
+    bc -= dc;
+  }
+  if (br >= 0 && br < BOARD_SIZE && bc >= 0 && bc < BOARD_SIZE && board[br][bc] === 0) {
+    openEnds++;
+  }
+
+  return evaluatePattern(count, openEnds, true);
+}
+
+function evaluatePosition(r, c, player) {
+  let score = 0;
+  const opponent = player === 1 ? 2 : 1;
+
+  board[r][c] = player;
+  for (const [dr, dc] of DIRECTIONS) {
+    score += evaluateLine(r, c, dr, dc, player);
+  }
+
+  board[r][c] = opponent;
+  let defScore = 0;
+  for (const [dr, dc] of DIRECTIONS) {
+    defScore += evaluateLine(r, c, dr, dc, opponent);
+  }
+  board[r][c] = 0;
+
+  // Center proximity bonus
+  const center = Math.floor(BOARD_SIZE / 2);
+  const dist = Math.abs(r - center) + Math.abs(c - center);
+  score += Math.max(0, 30 - dist * 2);
+
+  return score + defScore * 0.95;
+}
+
+function easyAI() {
+  const candidates = getCandidateMoves(2);
+  if (candidates.length === 0) return {r: 7, c: 7};
+
+  let best = candidates[0];
+  let bestScore = -Infinity;
+  for (const cell of candidates) {
+    const score = evaluatePosition(cell.r, cell.c, 2);
+    if (score > bestScore) {
+      bestScore = score;
+      best = cell;
+    }
+  }
+  return best;
+}
+
+function mediumAI() {
+  const candidates = getCandidateMoves(2);
+  if (candidates.length === 0) return {r: 7, c: 7};
+
+  const scored = candidates.map(cell => ({
+    ...cell,
+    score: evaluatePosition(cell.r, cell.c, 2)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(scored.length, 12);
+  const topCandidates = scored.slice(0, topN);
+
+  let bestMove = topCandidates[0];
+  let bestScore = -Infinity;
+
+  const depth = 3;
+  for (const candidate of topCandidates) {
+    board[candidate.r][candidate.c] = 2;
+    const prevLast = lastMove;
+    lastMove = {r: candidate.r, c: candidate.c};
+    const score = minimax(depth - 1, -Infinity, Infinity, false);
+    board[candidate.r][candidate.c] = 0;
+    lastMove = prevLast;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = candidate;
+    }
+  }
+  return bestMove;
+}
+
+function hardAI() {
+  const candidates = getCandidateMoves(2);
+  if (candidates.length === 0) return {r: 7, c: 7};
+
+  const scored = candidates.map(cell => ({
+    ...cell,
+    score: evaluatePosition(cell.r, cell.c, 2)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(scored.length, 20);
+  const topCandidates = scored.slice(0, topN);
+
+  let bestMove = topCandidates[0];
+  let bestScore = -Infinity;
+
+  const depth = 7;
+  for (const candidate of topCandidates) {
+    board[candidate.r][candidate.c] = 2;
+    const prevLast = lastMove;
+    lastMove = {r: candidate.r, c: candidate.c};
+    const score = minimax(depth - 1, -Infinity, Infinity, false, 0);
+    board[candidate.r][candidate.c] = 0;
+    lastMove = prevLast;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = candidate;
+    }
+  }
+  return bestMove;
+}
+
+function minimax(depth, alpha, beta, isMaximizing, ply) {
+  if (depth <= 0) return evaluateBoard();
+
+  const player = isMaximizing ? 2 : 1;
+
+  // Check immediate win/loss
+  for (const [dr, dc] of DIRECTIONS) {
+    let count = 0;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (board[r][c] !== player) continue;
+        let line = 1;
+        for (let i = 1; i < 5; i++) {
+          const nr = r + dr * i, nc = c + dc * i;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) line++;
+          else break;
+        }
+        if (line >= 5) return isMaximizing ? 1000000 - ply * 100 : -1000000 + ply * 100;
+      }
+    }
+  }
+
+  const opponent = isMaximizing ? 1 : 2;
+  for (const [dr, dc] of DIRECTIONS) {
+    let count = 0;
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let c = 0; c < BOARD_SIZE; c++) {
+        if (board[r][c] !== opponent) continue;
+        let line = 1;
+        for (let i = 1; i < 5; i++) {
+          const nr = r + dr * i, nc = c + dc * i;
+          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === opponent) line++;
+          else break;
+        }
+        if (line >= 5) return isMaximizing ? -1000000 + ply * 100 : 1000000 - ply * 100;
+      }
+    }
+  }
+
+  const candidates = getCandidateMoves(2);
+  const scored = candidates.map(cell => ({
+    ...cell,
+    score: evaluatePosition(cell.r, cell.c, player)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(scored.length, depth >= 4 ? 10 : 8);
+  const topCandidates = scored.slice(0, topN);
+
+  if (isMaximizing) {
+    let maxEval = -Infinity;
+    for (const candidate of topCandidates) {
+      board[candidate.r][candidate.c] = 2;
+      const evalScore = minimax(depth - 1, alpha, beta, false, ply + 1);
+      board[candidate.r][candidate.c] = 0;
+      if (evalScore > maxEval) maxEval = evalScore;
+      if (evalScore > alpha) alpha = evalScore;
+      if (beta <= alpha) break;
+    }
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    for (const candidate of topCandidates) {
+      board[candidate.r][candidate.c] = 1;
+      const evalScore = minimax(depth - 1, alpha, beta, true, ply + 1);
+      board[candidate.r][candidate.c] = 0;
+      if (evalScore < minEval) minEval = evalScore;
+      if (evalScore < beta) beta = evalScore;
+      if (beta <= alpha) break;
+    }
+    return minEval;
+  }
+}
+
+function evaluateBoard() {
+  let score = 0;
+  const candidates = getCandidateMoves(2);
+  for (const cell of candidates) {
+    score += evaluatePosition(cell.r, cell.c, 2) - evaluatePosition(cell.r, cell.c, 1) * 1.05;
+  }
+  return score;
+}
+
+function aiMove() {
+  if (gameOver) {
+    aiThinking = false;
+    return;
+  }
+
+  let move;
+  if (moveHistory.length === 0) {
+    move = {r: 7, c: 7};
+  } else {
+    switch (difficulty) {
+      case 'easy': move = easyAI(); break;
+      case 'medium': move = mediumAI(); break;
+      case 'hard': move = hardAI(); break;
+      default: move = mediumAI();
+    }
+  }
+
+  aiThinking = false;
+  if (board[move.r][move.c] === 0) {
+    placeStone(move.r, move.c);
+  } else {
+    // Fallback: find any empty cell
+    const cells = getEmptyCells();
+    if (cells.length > 0) {
+      const fallback = cells[Math.floor(Math.random() * cells.length)];
+      placeStone(fallback.r, fallback.c);
+    }
+  }
+}
+
+// ---- UI Updates ----
+function updateUI() {
+  document.getElementById('infoMoves').textContent = moveHistory.length;
+  const turnName = currentPlayer === 1 ? '黑棋' : '白棋';
+  document.getElementById('infoTurn').textContent = gameOver ? '已结束' : turnName;
+  document.getElementById('infoBlack').textContent = `⚫ ${currentPlayer === 1 && !gameOver ? '(当前)' : ''}`;
+  document.getElementById('infoWhite').textContent = `⚪  ${(mode === 'pve' ? '电脑' : '')} ${currentPlayer === 2 && !gameOver ? '(当前)' : ''}`;
+
+  if (teachModeActive) {
+    document.getElementById('statusText').textContent = '教学模式 - 点击棋盘摆子学习棋型';
+  } else if (aiThinking) {
+    document.getElementById('statusText').textContent = '电脑思考中...';
+  } else if (!gameOver) {
+    document.getElementById('statusText').textContent = `轮到 ${turnName} 落子`;
+  }
+
+  // Move history
+  const historyEl = document.getElementById('moveHistory');
+  let html = '';
+  moveHistory.forEach((m, i) => {
+    const col = String.fromCharCode(65 + m.c);
+    const row = m.r + 1;
+    const cls = m.player === 1 ? 'black' : 'white';
+    html += `<span class="move ${cls}">${i + 1}.${col}${row}</span>`;
+  });
+  historyEl.innerHTML = html;
+  historyEl.scrollTop = historyEl.scrollHeight;
+
+  // Tip box
+  updateTipBox();
+}
+
+function updateTipBox() {
+  const box = document.getElementById('tipBox');
+  if (teachModeActive && selectedTeach !== null) {
+    box.textContent = TEACH_PRESETS[selectedTeach].tips;
+  } else if (mode === 'pve') {
+    const tips = {
+      easy: '入门难度: AI基于位置评分选择最佳着法，有基本攻防意识。适合新手熟悉规则和棋型。',
+      medium: '进阶难度: AI使用3层搜索+剪枝算法，能预判3步以上。需要扎实的活三冲四基本功才能取胜。',
+      hard: '大师难度: AI使用7层深度搜索+广域候选评估，棋力强劲。需要灵活运用VCF、VCT等高级战术。'
+    };
+    box.textContent = tips[difficulty] || '';
+  } else if (mode === 'pvp') {
+    box.textContent = '双人对战模式: 黑棋先行，轮流落子。先在横、竖、斜任意方向连成五子者获胜。支持悔棋功能。';
+  } else {
+    box.textContent = '';
+  }
+}
+
+// ---- Mode Switching ----
+function setMode(newMode) {
+  if (aiThinking) return;
+
+  mode = newMode;
+  teachModeActive = (newMode === 'teach');
+  selectedTeach = null;
+
+  document.querySelectorAll('.mode-btns .btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(newMode === 'pvp' ? 'btnPvP' : newMode === 'pve' ? 'btnPvE' : 'btnTeach').classList.add('active');
+
+  document.getElementById('difficultyPanel').style.display = newMode === 'pve' ? 'block' : 'none';
+  document.getElementById('teachPanel').style.display = newMode === 'teach' ? 'block' : 'none';
+
+  initBoard();
+
+  if (newMode === 'teach') {
+    renderTeachList();
+    applyTeachPreset(0);
+  }
+
+  updateUI();
+}
+
+function setDifficulty(newDiff) {
+  difficulty = newDiff;
+  document.querySelectorAll('#difficultyPanel .btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`#difficultyPanel [data-diff="${newDiff}"]`).classList.add('active');
+  updateTipBox();
+}
+
+function applyTeachPreset(index) {
+  selectedTeach = index;
+  initBoard();
+  teachModeActive = true;
+
+  const t = TEACH_PRESETS[index];
+  t.stones.forEach(({r, c}) => { board[r][c] = t.player; });
+  if (t.defStones) {
+    t.defStones.forEach(({r, c}) => { board[r][c] = t.player === 1 ? 2 : 1; });
+  }
+
+  document.querySelectorAll('.teach-item').forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+  });
+
+  drawBoard();
+  updateUI();
+}
+
+function renderTeachList() {
+  const list = document.getElementById('teachList');
+  let html = '';
+  TEACH_PRESETS.forEach((t, i) => {
+    html += `<div class="teach-item${i === 0 ? ' active' : ''}" data-index="${i}">
+      <div class="tname">${t.name}</div>
+      <div class="tdesc">${t.desc}</div>
+    </div>`;
+  });
+  list.innerHTML = html;
+
+  list.querySelectorAll('.teach-item').forEach(el => {
+    el.addEventListener('click', () => applyTeachPreset(parseInt(el.dataset.index)));
+  });
+}
+
+function undoMove() {
+  if (aiThinking) return;
+  if (teachModeActive) return;
+  if (moveHistory.length === 0) return;
+
+  // In PvE mode, undo both AI and player moves
+  const undoCount = mode === 'pve' ? 2 : 1;
+  for (let i = 0; i < undoCount && moveHistory.length > 0; i++) {
+    const move = moveHistory.pop();
+    board[move.r][move.c] = 0;
+    currentPlayer = move.player;
+  }
+
+  lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
+  gameOver = false;
+  drawBoard();
+  updateUI();
+}
+
+// ---- Event Bindings ----
+document.getElementById('btnPvP').addEventListener('click', () => setMode('pvp'));
+document.getElementById('btnPvE').addEventListener('click', () => setMode('pve'));
+document.getElementById('btnTeach').addEventListener('click', () => setMode('teach'));
+document.getElementById('btnNewGame').addEventListener('click', () => {
+  if (aiThinking) return;
+  hideVictory();
+  initBoard();
+  if (teachModeActive && selectedTeach !== null) {
+    applyTeachPreset(selectedTeach);
+  }
+  updateUI();
+});
+document.getElementById('btnUndo').addEventListener('click', undoMove);
+
+document.querySelectorAll('#difficultyPanel .btn').forEach(btn => {
+  btn.addEventListener('click', () => setDifficulty(btn.dataset.diff));
+});
+
+// Keyboard shortcut for undo
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'z') {
+    e.preventDefault();
+    undoMove();
+  }
+});
+
+// ---- Initialize ----
+initBoard();
+renderTeachList();
+updateUI();
+</script>
+</body>
+</html>
