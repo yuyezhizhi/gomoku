@@ -35,7 +35,7 @@ body {
   display: flex;
   gap: 10px;
   padding: 6px 20px 10px;
-  max-width: 1100px;
+  max-width: 1200px;
   width: 100%;
   justify-content: center;
   align-items: flex-start;
@@ -58,8 +58,8 @@ canvas#board {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 270px;
-  max-width: 320px;
+  min-width: 280px;
+  max-width: 340px;
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
@@ -186,7 +186,7 @@ canvas#board {
   align-items: center;
   justify-content: center;
 }
-#victoryOverlay.show { display: flex; }
+#victoryOverlay.show { display: flex; cursor: pointer; }
 #particleCanvas {
   position: absolute;
   inset: 0;
@@ -221,10 +221,6 @@ canvas#board {
 @keyframes titleGlow {
   0% { text-shadow: 0 0 20px currentColor, 0 0 40px currentColor; }
   100% { text-shadow: 0 0 40px currentColor, 0 0 80px currentColor, 0 0 120px currentColor; }
-}
-#victoryBtn {
-  font-size: 18px;
-  padding: 12px 36px;
 }
 </style>
 </head>
@@ -294,16 +290,15 @@ canvas#board {
   <div id="victoryContent">
     <div id="victoryIcon"></div>
     <div id="victoryTitle"></div>
-    <button class="btn primary" id="victoryBtn">再来一局</button>
   </div>
 </div>
 
 <script>
 const BOARD_SIZE = 15;
-const CELL_SIZE = 36;
+const CELL_SIZE = 43;
 const PADDING = 18;
-const LABEL_SIZE = 16;
-const RADIUS = 14;
+const LABEL_SIZE = 18;
+const RADIUS = 17;
 const GRID_OFFSET_X = PADDING + LABEL_SIZE;
 const GRID_OFFSET_Y = PADDING;
 
@@ -472,7 +467,7 @@ function drawBoard() {
 
   // Coordinate labels
   ctx.fillStyle = '#6b5010';
-  ctx.font = '11px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.font = '12px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const labelY = GRID_OFFSET_Y + CELL_SIZE * (BOARD_SIZE - 1) + LABEL_SIZE;
@@ -491,7 +486,7 @@ function drawBoard() {
   ctx.fillStyle = '#8b6914';
   stars.forEach(([r,c]) => {
     ctx.beginPath();
-    ctx.arc(GRID_OFFSET_X + c * CELL_SIZE, GRID_OFFSET_Y + r * CELL_SIZE, 3, 0, Math.PI * 2);
+    ctx.arc(GRID_OFFSET_X + c * CELL_SIZE, GRID_OFFSET_Y + r * CELL_SIZE, 4, 0, Math.PI * 2);
     ctx.fill();
   });
 
@@ -543,6 +538,20 @@ function drawBoard() {
     ctx.beginPath();
     ctx.arc(x, y, RADIUS - 2, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  // Move sequence numbers (PvP and PvE modes only)
+  if (!teachModeActive && moveHistory.length > 0) {
+    ctx.font = `bold ${Math.max(10, Math.floor(RADIUS * 0.7))}px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < moveHistory.length; i++) {
+      const m = moveHistory[i];
+      const x = GRID_OFFSET_X + m.c * CELL_SIZE;
+      const y = GRID_OFFSET_Y + m.r * CELL_SIZE;
+      ctx.fillStyle = m.player === 1 ? '#e8c170' : '#333';
+      ctx.fillText(String(i + 1), x, y);
+    }
   }
 }
 
@@ -638,13 +647,10 @@ function hideVictory() {
   particles = [];
 }
 
-document.getElementById('victoryBtn').addEventListener('click', () => {
-  hideVictory();
-  initBoard();
-  if (teachModeActive && selectedTeach !== null) {
-    applyTeachPreset(selectedTeach);
+document.getElementById('victoryOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget || e.target.id === 'particleCanvas') {
+    hideVictory();
   }
-  updateUI();
 });
 
 canvas.addEventListener('mousemove', (e) => {
