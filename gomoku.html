@@ -774,82 +774,148 @@ function getCandidateMoves(radius) {
   return Array.from(candidateSet).map(v => ({r: Math.floor(v / BOARD_SIZE), c: v % BOARD_SIZE}));
 }
 
-// Pattern scoring
-function evaluatePattern(count, openEnds, isMyTurn) {
-  if (count >= 5) return 1000000;
+// Pattern scoring (evaluating an empty cell with player stones on both sides)
+function evaluatePattern(count, openEnds) {
+  if (count >= 5) return 10000000;
   if (count === 4) {
-    if (openEnds === 2) return 100000; // Live four
-    if (openEnds === 1) return 10000;  // Rush four
+    if (openEnds === 2) return 200000;
+    if (openEnds === 1) return 20000;
   }
   if (count === 3) {
-    if (openEnds === 2) return isMyTurn ? 5000 : 1000; // Live three
-    if (openEnds === 1) return 500;  // Sleep three
+    if (openEnds === 2) return 8000;
+    if (openEnds === 1) return 800;
   }
   if (count === 2) {
-    if (openEnds === 2) return 200;
-    if (openEnds === 1) return 50;
+    if (openEnds === 2) return 400;
+    if (openEnds === 1) return 80;
   }
   if (count === 1) {
-    if (openEnds === 2) return 20;
-    if (openEnds === 1) return 5;
+    if (openEnds === 2) return 30;
+    if (openEnds === 1) return 8;
   }
   return 0;
 }
 
-function evaluateLine(r, c, dr, dc, player) {
+// Count consecutive stones and open ends from a starting cell (exclusive) in one direction
+function countLine(r, c, dr, dc, player) {
   let count = 0;
+  let openEnd = false;
+  let nr = r + dr, nc = c + dc;
+  while (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+    count++;
+    nr += dr;
+    nc += dc;
+  }
+  if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === 0) {
+    openEnd = true;
+  }
+  return {count, openEnd};
+}
+
+function evaluateLine(r, c, dr, dc, player) {
+  const fwd = countLine(r, c, dr, dc, player);
+  const bwd = countLine(r, c, -dr, -dc, player);
+  const total = fwd.count + bwd.count;
   let openEnds = 0;
+  if (fwd.openEnd) openEnds++;
+  if (bwd.openEnd) openEnds++;
+  return evaluatePattern(total, openEnds);
+}
 
-  // Forward
-  let fr = r + dr, fc = c + dc;
-  while (fr >= 0 && fr < BOARD_SIZE && fc >= 0 && fc < BOARD_SIZE && board[fr][fc] === player) {
-    count++;
-    fr += dr;
-    fc += dc;
+// Check if player can win by placing at (r,c)
+function isWinningMove(r, c, player) {
+  board[r][c] = player;
+  let won = false;
+  for (const [dr, dc] of DIRECTIONS) {
+    const fwd = countLine(r, c, dr, dc, player);
+    const bwd = countLine(r, c, -dr, -dc, player);
+    if (1 + fwd.count + bwd.count >= 5) { won = true; break; }
   }
-  if (fr >= 0 && fr < BOARD_SIZE && fc >= 0 && fc < BOARD_SIZE && board[fr][fc] === 0) {
-    openEnds++;
-  }
-
-  // Backward
-  let br = r - dr, bc = c - dc;
-  while (br >= 0 && br < BOARD_SIZE && bc >= 0 && bc < BOARD_SIZE && board[br][bc] === player) {
-    count++;
-    br -= dr;
-    bc -= dc;
-  }
-  if (br >= 0 && br < BOARD_SIZE && bc >= 0 && bc < BOARD_SIZE && board[br][bc] === 0) {
-    openEnds++;
-  }
-
-  return evaluatePattern(count, openEnds, true);
+  board[r][c] = 0;
+  return won;
 }
 
 function evaluatePosition(r, c, player) {
-  let score = 0;
   const opponent = player === 1 ? 2 : 1;
 
+  // Immediate win
   board[r][c] = player;
+  let attackScore = 0;
   for (const [dr, dc] of DIRECTIONS) {
-    score += evaluateLine(r, c, dr, dc, player);
-  }
-
-  board[r][c] = opponent;
-  let defScore = 0;
-  for (const [dr, dc] of DIRECTIONS) {
-    defScore += evaluateLine(r, c, dr, dc, opponent);
+    const fwd = countLine(r, c, dr, dc, player);
+    const bwd = countLine(r, c, -dr, -dc, player);
+    const total = fwd.count + bwd.count;
+    if (total >= 4) { attackScore = 10000000; break; }
+    let openEnds = (fwd.openEnd ? 1 : 0) + (bwd.openEnd ? 1 : 0);
+    attackScore += evaluatePattern(total, openEnds);
   }
   board[r][c] = 0;
 
-  // Center proximity bonus
-  const center = Math.floor(BOARD_SIZE / 2);
-  const dist = Math.abs(r - center) + Math.abs(c - center);
-  score += Math.max(0, 30 - dist * 2);
+  if (attackScore >= 10000000) return attackScore;
 
-  return score + defScore * 0.95;
+  // Check if opponent can win by playing here
+  board[r][c] = opponent;
+  let defScore = 0;
+  for (const [dr, dc] of DIRECTIONS) {
+    const fwd = countLine(r, c, dr, dc, opponent);
+    const bwd = countLine(r, c, -dr, -dc, opponent);
+    const total = fwd.count + bwd.count;
+    if (total >= 4) {
+      board[r][c] = 0;
+      return 9000000 + attackScore;
+    }
+    let openEnds = (fwd.openEnd ? 1 : 0) + (bwd.openEnd ? 1 : 0);
+    defScore += evaluatePattern(total, openEnds);
+  }
+  board[r][c] = 0;
+
+  // Center proximity
+  const center = Math.floor(BOARD_SIZE / 2);
+  const manhattan = Math.abs(r - center) + Math.abs(c - center);
+  const centerBonus = Math.max(0, 50 - manhattan * 3);
+
+  return attackScore + defScore * 1.05 + centerBonus;
+}
+
+// Find immediate winning or must-block moves
+function findCriticalMoves(player) {
+  const opponent = player === 1 ? 2 : 1;
+  const candidates = getCandidateMoves(2);
+  let winningMove = null;
+  let mustBlock = null;
+  let bestBlockScore = -Infinity;
+
+  for (const cell of candidates) {
+    if (isWinningMove(cell.r, cell.c, player)) {
+      winningMove = cell;
+      break;
+    }
+    if (isWinningMove(cell.r, cell.c, opponent)) {
+      board[cell.r][cell.c] = player;
+      let afterScore = 0;
+      for (const [dr, dc] of DIRECTIONS) {
+        const fwd = countLine(cell.r, cell.c, dr, dc, player);
+        const bwd = countLine(cell.r, cell.c, -dr, -dc, player);
+        const total = fwd.count + bwd.count;
+        let openEnds = (fwd.openEnd ? 1 : 0) + (bwd.openEnd ? 1 : 0);
+        afterScore += evaluatePattern(total, openEnds);
+      }
+      board[cell.r][cell.c] = 0;
+      if (afterScore > bestBlockScore) {
+        bestBlockScore = afterScore;
+        mustBlock = cell;
+      }
+    }
+  }
+
+  return {winningMove, mustBlock};
 }
 
 function easyAI() {
+  const critical = findCriticalMoves(2);
+  if (critical.winningMove) return critical.winningMove;
+  if (critical.mustBlock) return critical.mustBlock;
+
   const candidates = getCandidateMoves(2);
   if (candidates.length === 0) return {r: 7, c: 7};
 
@@ -866,38 +932,10 @@ function easyAI() {
 }
 
 function mediumAI() {
-  const candidates = getCandidateMoves(2);
-  if (candidates.length === 0) return {r: 7, c: 7};
+  const critical = findCriticalMoves(2);
+  if (critical.winningMove) return critical.winningMove;
+  if (critical.mustBlock) return critical.mustBlock;
 
-  const scored = candidates.map(cell => ({
-    ...cell,
-    score: evaluatePosition(cell.r, cell.c, 2)
-  }));
-  scored.sort((a, b) => b.score - a.score);
-  const topN = Math.min(scored.length, 12);
-  const topCandidates = scored.slice(0, topN);
-
-  let bestMove = topCandidates[0];
-  let bestScore = -Infinity;
-
-  const depth = 3;
-  for (const candidate of topCandidates) {
-    board[candidate.r][candidate.c] = 2;
-    const prevLast = lastMove;
-    lastMove = {r: candidate.r, c: candidate.c};
-    const score = minimax(depth - 1, -Infinity, Infinity, false);
-    board[candidate.r][candidate.c] = 0;
-    lastMove = prevLast;
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = candidate;
-    }
-  }
-  return bestMove;
-}
-
-function hardAI() {
   const candidates = getCandidateMoves(2);
   if (candidates.length === 0) return {r: 7, c: 7};
 
@@ -912,70 +950,74 @@ function hardAI() {
   let bestMove = topCandidates[0];
   let bestScore = -Infinity;
 
-  const depth = 7;
   for (const candidate of topCandidates) {
     board[candidate.r][candidate.c] = 2;
-    const prevLast = lastMove;
-    lastMove = {r: candidate.r, c: candidate.c};
-    const score = minimax(depth - 1, -Infinity, Infinity, false, 0);
+    const score = minimax(5, -Infinity, Infinity, false, 0);
     board[candidate.r][candidate.c] = 0;
-    lastMove = prevLast;
+    if (score > bestScore) { bestScore = score; bestMove = candidate; }
+  }
+  return bestMove;
+}
 
-    if (score > bestScore) {
-      bestScore = score;
-      bestMove = candidate;
-    }
+function hardAI() {
+  const critical = findCriticalMoves(2);
+  if (critical.winningMove) return critical.winningMove;
+  if (critical.mustBlock) return critical.mustBlock;
+
+  const candidates = getCandidateMoves(2);
+  if (candidates.length === 0) return {r: 7, c: 7};
+
+  const scored = candidates.map(cell => ({
+    ...cell,
+    score: evaluatePosition(cell.r, cell.c, 2)
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  const topN = Math.min(scored.length, 30);
+  const topCandidates = scored.slice(0, topN);
+
+  let bestMove = topCandidates[0];
+  let bestScore = -Infinity;
+
+  for (const candidate of topCandidates) {
+    board[candidate.r][candidate.c] = 2;
+    const score = minimax(9, -Infinity, Infinity, false, 0);
+    board[candidate.r][candidate.c] = 0;
+    if (score > bestScore) { bestScore = score; bestMove = candidate; }
   }
   return bestMove;
 }
 
 function minimax(depth, alpha, beta, isMaximizing, ply) {
-  if (depth <= 0) return evaluateBoard();
-
   const player = isMaximizing ? 2 : 1;
-
-  // Check immediate win/loss
-  for (const [dr, dc] of DIRECTIONS) {
-    let count = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (board[r][c] !== player) continue;
-        let line = 1;
-        for (let i = 1; i < 5; i++) {
-          const nr = r + dr * i, nc = c + dc * i;
-          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) line++;
-          else break;
-        }
-        if (line >= 5) return isMaximizing ? 1000000 - ply * 100 : -1000000 + ply * 100;
-      }
-    }
-  }
-
   const opponent = isMaximizing ? 1 : 2;
-  for (const [dr, dc] of DIRECTIONS) {
-    let count = 0;
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        if (board[r][c] !== opponent) continue;
-        let line = 1;
-        for (let i = 1; i < 5; i++) {
-          const nr = r + dr * i, nc = c + dc * i;
-          if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === opponent) line++;
-          else break;
+
+  // Fast terminal check: scan for five-in-a-row anywhere
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === 0) continue;
+      const p = board[r][c];
+      for (const [dr, dc] of DIRECTIONS) {
+        const fwd = countLine(r, c, dr, dc, p);
+        if (1 + fwd.count >= 5) {
+          return p === 2 ? (10000000 - ply * 100) : (-10000000 + ply * 100);
         }
-        if (line >= 5) return isMaximizing ? -1000000 + ply * 100 : 1000000 - ply * 100;
       }
     }
   }
+
+  if (depth <= 0) return evaluateBoard();
 
   const candidates = getCandidateMoves(2);
   const scored = candidates.map(cell => ({
     ...cell,
-    score: evaluatePosition(cell.r, cell.c, player)
+    score: isMaximizing
+      ? evaluatePosition(cell.r, cell.c, player)
+      : evaluatePosition(cell.r, cell.c, opponent)
   }));
   scored.sort((a, b) => b.score - a.score);
-  const topN = Math.min(scored.length, depth >= 4 ? 10 : 8);
-  const topCandidates = scored.slice(0, topN);
+  // Wider search at shallow depths for accuracy
+  const topN = depth >= 6 ? 10 : (depth >= 4 ? 12 : 15);
+  const topCandidates = scored.slice(0, Math.min(topN, scored.length));
 
   if (isMaximizing) {
     let maxEval = -Infinity;
@@ -1004,9 +1046,19 @@ function minimax(depth, alpha, beta, isMaximizing, ply) {
 
 function evaluateBoard() {
   let score = 0;
-  const candidates = getCandidateMoves(2);
-  for (const cell of candidates) {
-    score += evaluatePosition(cell.r, cell.c, 2) - evaluatePosition(cell.r, cell.c, 1) * 1.05;
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === 0) continue;
+      const p = board[r][c];
+      for (const [dr, dc] of DIRECTIONS) {
+        const fwd = countLine(r, c, dr, dc, p);
+        const bwd = countLine(r, c, -dr, -dc, p);
+        const total = fwd.count + bwd.count;
+        let openEnds = (fwd.openEnd ? 1 : 0) + (bwd.openEnd ? 1 : 0);
+        const val = evaluatePattern(total, openEnds);
+        score += p === 2 ? val : -val * 1.05;
+      }
+    }
   }
   return score;
 }
