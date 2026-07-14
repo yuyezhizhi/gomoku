@@ -98,6 +98,7 @@ canvas#board {
 }
 .btn:hover { background: #4a4a65; border-color: #777; }
 .btn.active { background: #e8c170; color: #1a1a2e; border-color: #e8c170; font-weight: bold; }
+.btn:disabled, .btn.locked { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 .btn.danger { background: #6b2a2a; border-color: #8b3a3a; }
 .btn.danger:hover { background: #8b3a3a; }
 .btn.primary { background: #2a5a3a; border-color: #3a6a4a; }
@@ -309,6 +310,7 @@ let gameOver = false;
 let mode = 'pvp'; // pvp, pve, teach
 let difficulty = 'easy';
 let lastMove = null;
+let gameLocked = false;
 let aiThinking = false;
 let teachModeActive = false;
 let teachPresets = [];
@@ -438,6 +440,9 @@ function initBoard() {
   gameOver = false;
   lastMove = null;
   aiThinking = false;
+  gameLocked = false;
+  canvas.style.pointerEvents = 'auto';
+  updateDifficultyLock(false);
   updateUI();
   drawBoard();
 }
@@ -553,6 +558,19 @@ function drawBoard() {
       ctx.fillText(String(i + 1), x, y);
     }
   }
+
+  // AI thinking overlay
+  if (aiThinking) {
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(220,60,60,0.6)';
+    ctx.font = 'bold 22px "Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('电脑思考中…', canvas.width / 2, canvas.height / 2);
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+  }
 }
 
 function getCellFromEvent(e) {
@@ -655,15 +673,15 @@ document.getElementById('victoryOverlay').addEventListener('click', (e) => {
 
 canvas.addEventListener('mousemove', (e) => {
   const cell = getCellFromEvent(e);
-  if (cell && board[cell.r][cell.c] === 0 && !gameOver && !aiThinking) {
+  if (cell && board[cell.r][cell.c] === 0 && !gameOver && !aiThinking && !gameLocked) {
     canvas.style.cursor = 'pointer';
   } else {
-    canvas.style.cursor = gameOver || aiThinking ? 'default' : 'pointer';
+    canvas.style.cursor = (gameOver || aiThinking || gameLocked) ? 'default' : 'pointer';
   }
 });
 
 canvas.addEventListener('click', (e) => {
-  if (gameOver || aiThinking) return;
+  if (gameOver || aiThinking || gameLocked) return;
   const cell = getCellFromEvent(e);
   if (!cell) return;
   if (board[cell.r][cell.c] !== 0) return;
@@ -680,6 +698,7 @@ function placeStone(r, c) {
   board[r][c] = currentPlayer;
   moveHistory.push({r, c, player: currentPlayer});
   lastMove = {r, c};
+  if (mode === 'pve' && moveHistory.length === 1) updateDifficultyLock(true);
 
   const win = checkWin(r, c, currentPlayer);
 
@@ -700,7 +719,10 @@ function placeStone(r, c) {
 
   if (!gameOver && mode === 'pve' && currentPlayer === 2) {
     aiThinking = true;
+    gameLocked = true;
+    canvas.style.pointerEvents = 'none';
     updateUI();
+    drawBoard();
     setTimeout(() => aiMove(), 100);
   }
 
@@ -952,7 +974,11 @@ function mediumAI() {
 
   for (const candidate of topCandidates) {
     board[candidate.r][candidate.c] = 2;
-    const score = minimax(5, -Infinity, Infinity, false, 0);
+    if (checkWinAt(candidate.r, candidate.c, 2)) {
+      board[candidate.r][candidate.c] = 0;
+      return candidate;
+    }
+    const score = minimax(4, -Infinity, Infinity, false, 0, candidate.r, candidate.c);
     board[candidate.r][candidate.c] = 0;
     if (score > bestScore) { bestScore = score; bestMove = candidate; }
   }
@@ -972,7 +998,7 @@ function hardAI() {
     score: evaluatePosition(cell.r, cell.c, 2)
   }));
   scored.sort((a, b) => b.score - a.score);
-  const topN = Math.min(scored.length, 30);
+  const topN = Math.min(scored.length, 25);
   const topCandidates = scored.slice(0, topN);
 
   let bestMove = topCandidates[0];
@@ -980,26 +1006,39 @@ function hardAI() {
 
   for (const candidate of topCandidates) {
     board[candidate.r][candidate.c] = 2;
-    const score = minimax(9, -Infinity, Infinity, false, 0);
+    if (checkWinAt(candidate.r, candidate.c, 2)) {
+      board[candidate.r][candidate.c] = 0;
+      return candidate;
+    }
+    const score = minimax(7, -Infinity, Infinity, false, 0, candidate.r, candidate.c);
     board[candidate.r][candidate.c] = 0;
     if (score > bestScore) { bestScore = score; bestMove = candidate; }
   }
   return bestMove;
 }
 
-function minimax(depth, alpha, beta, isMaximizing, ply) {
+function checkWinAt(r, c, player) {
+  for (const [dr, dc] of DIRECTIONS) {
+    const fwd = countLine(r, c, dr, dc, player);
+    const bwd = countLine(r, c, -dr, -dc, player);
+    if (1 + fwd.count + bwd.count >= 5) return true;
+  }
+  return false;
+}
+
+function minimax(depth, alpha, beta, isMaximizing, ply, lastR, lastC) {
   const player = isMaximizing ? 2 : 1;
   const opponent = isMaximizing ? 1 : 2;
 
-  // Fast terminal check: scan for five-in-a-row anywhere
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if (board[r][c] === 0) continue;
-      const p = board[r][c];
+  // Fast position-based terminal check
+  if (lastR !== undefined && lastC !== undefined) {
+    const lastPlayer = board[lastR][lastC];
+    if (lastPlayer !== 0) {
       for (const [dr, dc] of DIRECTIONS) {
-        const fwd = countLine(r, c, dr, dc, p);
-        if (1 + fwd.count >= 5) {
-          return p === 2 ? (10000000 - ply * 100) : (-10000000 + ply * 100);
+        const fwd = countLine(lastR, lastC, dr, dc, lastPlayer);
+        const bwd = countLine(lastR, lastC, -dr, -dc, lastPlayer);
+        if (1 + fwd.count + bwd.count >= 5) {
+          return lastPlayer === 2 ? (10000000 - ply * 100) : (-10000000 + ply * 100);
         }
       }
     }
@@ -1015,15 +1054,14 @@ function minimax(depth, alpha, beta, isMaximizing, ply) {
       : evaluatePosition(cell.r, cell.c, opponent)
   }));
   scored.sort((a, b) => b.score - a.score);
-  // Wider search at shallow depths for accuracy
-  const topN = depth >= 6 ? 10 : (depth >= 4 ? 12 : 15);
+  const topN = depth >= 5 ? 8 : (depth >= 3 ? 10 : 12);
   const topCandidates = scored.slice(0, Math.min(topN, scored.length));
 
   if (isMaximizing) {
     let maxEval = -Infinity;
     for (const candidate of topCandidates) {
       board[candidate.r][candidate.c] = 2;
-      const evalScore = minimax(depth - 1, alpha, beta, false, ply + 1);
+      const evalScore = minimax(depth - 1, alpha, beta, false, ply + 1, candidate.r, candidate.c);
       board[candidate.r][candidate.c] = 0;
       if (evalScore > maxEval) maxEval = evalScore;
       if (evalScore > alpha) alpha = evalScore;
@@ -1034,7 +1072,7 @@ function minimax(depth, alpha, beta, isMaximizing, ply) {
     let minEval = Infinity;
     for (const candidate of topCandidates) {
       board[candidate.r][candidate.c] = 1;
-      const evalScore = minimax(depth - 1, alpha, beta, true, ply + 1);
+      const evalScore = minimax(depth - 1, alpha, beta, true, ply + 1, candidate.r, candidate.c);
       board[candidate.r][candidate.c] = 0;
       if (evalScore < minEval) minEval = evalScore;
       if (evalScore < beta) beta = evalScore;
@@ -1066,6 +1104,7 @@ function evaluateBoard() {
 function aiMove() {
   if (gameOver) {
     aiThinking = false;
+    gameLocked = false;
     return;
   }
 
@@ -1085,13 +1124,14 @@ function aiMove() {
   if (board[move.r][move.c] === 0) {
     placeStone(move.r, move.c);
   } else {
-    // Fallback: find any empty cell
     const cells = getEmptyCells();
     if (cells.length > 0) {
       const fallback = cells[Math.floor(Math.random() * cells.length)];
       placeStone(fallback.r, fallback.c);
     }
   }
+  gameLocked = false;
+  setTimeout(() => { canvas.style.pointerEvents = 'auto'; }, 0);
 }
 
 // ---- UI Updates ----
@@ -1146,7 +1186,7 @@ function updateTipBox() {
 
 // ---- Mode Switching ----
 function setMode(newMode) {
-  if (aiThinking) return;
+  if (aiThinking || gameLocked) return;
 
   mode = newMode;
   teachModeActive = (newMode === 'teach');
@@ -1158,6 +1198,7 @@ function setMode(newMode) {
   document.getElementById('difficultyPanel').style.display = newMode === 'pve' ? 'block' : 'none';
   document.getElementById('teachPanel').style.display = newMode === 'teach' ? 'block' : 'none';
 
+  updateDifficultyLock(false);
   initBoard();
 
   if (newMode === 'teach') {
@@ -1168,7 +1209,14 @@ function setMode(newMode) {
   updateUI();
 }
 
+function updateDifficultyLock(locked) {
+  document.querySelectorAll('#difficultyPanel .btn').forEach(b => {
+    b.classList.toggle('locked', locked);
+  });
+}
+
 function setDifficulty(newDiff) {
+  if (mode === 'pve' && moveHistory.length > 0) return;
   difficulty = newDiff;
   document.querySelectorAll('#difficultyPanel .btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`#difficultyPanel [data-diff="${newDiff}"]`).classList.add('active');
@@ -1211,7 +1259,7 @@ function renderTeachList() {
 }
 
 function undoMove() {
-  if (aiThinking) return;
+  if (aiThinking || gameLocked) return;
   if (teachModeActive) return;
   if (moveHistory.length === 0) return;
 
@@ -1225,6 +1273,7 @@ function undoMove() {
 
   lastMove = moveHistory.length > 0 ? moveHistory[moveHistory.length - 1] : null;
   gameOver = false;
+  if (mode === 'pve') updateDifficultyLock(moveHistory.length > 0);
   drawBoard();
   updateUI();
 }
@@ -1234,7 +1283,7 @@ document.getElementById('btnPvP').addEventListener('click', () => setMode('pvp')
 document.getElementById('btnPvE').addEventListener('click', () => setMode('pve'));
 document.getElementById('btnTeach').addEventListener('click', () => setMode('teach'));
 document.getElementById('btnNewGame').addEventListener('click', () => {
-  if (aiThinking) return;
+  if (aiThinking || gameLocked) return;
   hideVictory();
   initBoard();
   if (teachModeActive && selectedTeach !== null) {
